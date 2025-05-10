@@ -1,31 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, FileUp, Loader2, Send } from 'lucide-react';
-
-const subjects = [
-  { id: 'coding', name: 'Coding', criteria: ['Logic', 'Efficiency', 'Readability'] },
-  { id: 'english', name: 'English', criteria: ['Grammar', 'Content', 'Creativity'] },
-  { id: 'math', name: 'Mathematics', criteria: ['Approach', 'Calculation', 'Presentation'] }
-];
-
-const generateSystemPrompt = (subject) => {
-  const subjectInfo = subjects.find(s => s.id === subject);
-  return `You are an expert ${subject} instructor who provides detailed feedback. 
-  Evaluate submissions based on these criteria: ${subjectInfo.criteria.join(', ')}. 
-  Provide specific, actionable feedback and suggestions for improvement.
-  Format your response as valid JSON with the following structure:
-  {
-    "score": (overall percentage score),
-    "summary": (brief overall assessment),
-    "criteriaFeedback": [
-      {
-        "criterion": (criterion name),
-        "score": (percentage score),
-        "feedback": (specific feedback for this criterion)
-      }
-    ],
-    "suggestions": [(array of specific improvement suggestions)]
-  }`;
-};
+import * as pdfjsLib from 'pdfjs-dist';
+import Tesseract from 'tesseract.js';
 
 const FeedbackSystem = () => {
   const [file, setFile] = useState(null);
@@ -34,6 +10,40 @@ const FeedbackSystem = () => {
   const [feedback, setFeedback] = useState(null);
   const [error, setError] = useState('');
   const [fileContent, setFileContent] = useState('');
+
+  // Define subjects array with "Math," "English," and "Coding"
+  const subjects = [
+    { id: 'math', name: 'Math', criteria: ['Approach', 'Calculation', 'Presentation'] },
+    { id: 'english', name: 'English', criteria: ['Grammar', 'Content', 'Creativity'] },
+    { id: 'coding', name: 'Coding', criteria: ['Logic', 'Efficiency', 'Readability'] },
+  ];
+
+  // Generate system prompt based on selected subject
+  const generateSystemPrompt = (subject) => {
+    const subjectInfo = subjects.find((s) => s.id === subject);
+    return `You are an expert ${subjectInfo.name} instructor who provides detailed feedback. 
+    Evaluate submissions based on these criteria: ${subjectInfo.criteria.join(', ')}. 
+    Provide specific, actionable feedback and suggestions for improvement.
+    Format your response as valid JSON with the following structure:
+    {
+      "score": (overall percentage score),
+      "summary": (brief overall assessment),
+      "criteriaFeedback": [
+        {
+          "criterion": (criterion name),
+          "score": (percentage score),
+          "feedback": (specific feedback for this criterion)
+        }
+      ],
+      "suggestions": [(array of specific improvement suggestions)]
+    }`;
+  };
+
+  // Set up PDF.js worker when component mounts
+  useEffect(() => {
+    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  }, []);
 
   const readFileContent = (file) => {
     return new Promise((resolve, reject) => {
@@ -44,9 +54,92 @@ const FeedbackSystem = () => {
     });
   };
 
+  const extractTextFromPDF = async (file) => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let extractedText = '';
+
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        // Render the page to the canvas
+        await page.render(renderContext).promise;
+
+        // Convert the canvas to an image and pass it to OCR
+        const imageData = canvas.toDataURL('image/png');
+        const ocrResult = await performOCR(imageData);
+
+        // Append the OCR result to the extracted text
+        extractedText += ocrResult + ' ';
+      }
+
+      // Return the combined text after processing all pages
+      return extractedText.trim();
+    } catch (error) {
+      console.error('Error extracting text from PDF:', error);
+      return '';
+    }
+  };
+
+  const performOCR = async (imageData) => {
+    try {
+      const result = await Tesseract.recognize(imageData, 'eng', {
+        logger: (m) => console.log(m), // Logs progress
+      });
+      console.log('OCR Result:', result.data.text); // Log the extracted text
+      return result.data.text.trim();
+    } catch (error) {
+      console.error('OCR Error:', error);
+      return 'Error performing OCR.';
+    }
+  };
+
+  const handleFileChange = async (event) => {
+    const selectedFile = event.target.files[0];
+    if (!selectedFile) return;
+
+    if (!['application/pdf', 'text/plain', 'image/png', 'image/jpeg'].includes(selectedFile.type)) {
+      setError('Unsupported file type. Please upload a PDF, text, or image file.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+
+    try {
+      if (selectedFile.type === 'application/pdf') {
+        const typedText = await extractTextFromPDF(selectedFile);
+        setFileContent(typedText || 'No text could be extracted.');
+      } else {
+        const ocrText = await performOCR(selectedFile);
+        setFileContent(ocrText || 'No text could be extracted.');
+      }
+
+      setFile(selectedFile);
+    } catch (err) {
+      setError('Error processing file. Please try again.');
+      console.error('File processing error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerateFeedback = async () => {
     if (!file || !subject || !fileContent) {
-      setError('Please select both a file and subject');
+      setError('Please select both a file and subject.');
       return;
     }
 
@@ -59,9 +152,9 @@ const FeedbackSystem = () => {
       const response = await fetch('http://localhost:5000/generate-feedback', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fileContent, subject, systemPrompt })
+        body: JSON.stringify({ fileContent, subject, systemPrompt }),
       });
 
       if (!response.ok) {
@@ -69,27 +162,12 @@ const FeedbackSystem = () => {
       }
 
       const feedbackData = await response.json();
-      setFeedback(feedbackData);
+      setFeedback(feedbackData || { summary: 'No feedback available.', score: 0 });
     } catch (err) {
       setError('Error generating feedback. Please try again.');
       console.error('Feedback generation error:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleFileChange = async (event) => {
-    const selectedFile = event.target.files[0];
-    if (selectedFile) {
-      try {
-        const content = await readFileContent(selectedFile);
-        setFileContent(content);
-        setFile(selectedFile);
-        setError('');
-        setFeedback(null);
-      } catch (err) {
-        setError('Error reading file content');
-      }
     }
   };
 
@@ -116,7 +194,7 @@ const FeedbackSystem = () => {
                   type="file"
                   className="hidden"
                   onChange={handleFileChange}
-                  accept=".txt,.md,.js,.py"
+                  accept=".pdf,.txt,.png,.jpg,.jpeg"
                 />
               </label>
               {file && <span className="ml-3 text-sm">{file.name}</span>}
@@ -132,7 +210,7 @@ const FeedbackSystem = () => {
               className="w-full p-2 border rounded-lg"
             >
               <option value="">Choose a subject...</option>
-              {subjects.map(sub => (
+              {subjects.map((sub) => (
                 <option key={sub.id} value={sub.id}>
                   {sub.name}
                 </option>

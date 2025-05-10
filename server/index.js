@@ -1,73 +1,54 @@
 require('dotenv').config();
 const express = require('express');
-const OpenAI = require('openai');
 const cors = require('cors');
+const config = require('./config');
+const logger = require('./utils/logger');
+const requestLogger = require('./middleware/requestLogger');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 
-
-// Validate GitHub PAT
-const apiKey = process.env.GITHUB_TOKEN;
-if (!apiKey || !apiKey.startsWith('ghp_')) {
-  console.error('Invalid GitHub PAT format. Must start with "ghp-"');
-  process.exit(1);
-}
-
-const app = express();
-const port = 5000;
-
-app.use(cors());
-app.use(express.json());
-
-// Configure OpenAI client
-const client = new OpenAI({
-  apiKey: process.env.GITHUB_TOKEN,
-  baseURL: "https://models.inference.ai.azure.com"
-});
-
-// Helper function to clean response and extract JSON
-const extractJSON = (text) => {
-  try {
-    // Remove markdown code blocks if present
-    const jsonStr = text.replace(/```json\n|\n```/g, '').trim();
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    console.error('JSON extraction failed:', error);
-    throw new Error('Invalid JSON format in response');
+// Environment validation
+const validateEnvironment = () => {
+  const apiKey = config.openai.apiKey;
+  if (!apiKey || !apiKey.startsWith('ghp_')) {
+    logger.error('Invalid GitHub PAT format. Must start with "ghp-"');
+    process.exit(1);
   }
+  
+  return true;
 };
 
-app.post('/generate-feedback', async (req, res) => {
-  const { fileContent, subject, systemPrompt } = req.body;
+// Initialize app
+const initializeApp = () => {
+  validateEnvironment();
+  
+  const app = express();
+  const port = config.server.port;
 
-  try {
-    const feedbackResponse = await client.chat.completions.create({
-      messages: [
-        { 
-          role: "system", 
-          content: `${systemPrompt} Important: Return only valid JSON without markdown code blocks.` 
-        },
-        { role: "user", content: fileContent }
-      ],
-      model: "gpt-4o",
-      temperature: 0.7,
-      max_tokens: 1000
-    });
+  // Middleware
+  app.use(cors(config.server.corsOptions));
+  app.use(express.json({ limit: '10mb' }));  // Increased limit for larger documents
+  app.use(requestLogger);
+  
+  // Routes
+  app.use('/', feedbackRoutes);
+  
+  // Error handling
+  app.use(errorHandler);
+  app.use(notFoundHandler);
+  
+  return { app, port };
+};
 
-    const responseContent = feedbackResponse.choices[0].message.content;
-    console.log('Raw response:', responseContent);
-
-    const feedbackData = extractJSON(responseContent);
-    console.log('Parsed feedback:', feedbackData);
-
-    res.json(feedbackData);
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ 
-      error: 'Error generating feedback',
-      details: error.message 
-    });
-  }
-});
+// Start server
+const { app, port } = initializeApp();
 
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  logger.info(`Server running at http://localhost:${port}`, {
+    port,
+    env: config.server.environment
+  });
 });
+
+// For testing purposes
+module.exports = app;

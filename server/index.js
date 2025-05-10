@@ -10,8 +10,8 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 // Environment validation
 const validateEnvironment = () => {
   const apiKey = config.openai.apiKey;
-  if (!apiKey || !apiKey.startsWith('ghp_')) {
-    logger.error('Invalid GitHub PAT format. Must start with "ghp-"');
+  if (!apiKey) {
+    logger.error('Missing GitHub token. Please set the GITHUB_TOKEN environment variable.');
     process.exit(1);
   }
   

@@ -14,11 +14,11 @@ const config = {
     }
   },
   
-  // OpenAI configuration
+  // OpenAI configuration via GitHub AI
   openai: {
     apiKey: process.env.GITHUB_TOKEN,
-    baseUrl: process.env.OPENAI_BASE_URL || "https://models.inference.ai.azure.com",
-    model: process.env.OPENAI_MODEL || "gpt-4o",
+    baseUrl: process.env.OPENAI_BASE_URL || "https://models.github.ai/inference",
+    model: process.env.OPENAI_MODEL || "openai/gpt-4o",
     temperature: parseFloat(process.env.OPENAI_TEMPERATURE || "0.7"),
     maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || "1000"),
   },

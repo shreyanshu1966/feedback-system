@@ -9,14 +9,15 @@ class Feedback {
 
   // Validate feedback data
   static validate(data) {
-    if (!data.score || typeof data.score !== 'number') {
-      throw new Error('Score is required and must be a number');
+    if (typeof data.score !== 'number') {
+      throw new Error(`Score must be a number, received: ${typeof data.score}`);
     }
 
     if (!data.summary || typeof data.summary !== 'string') {
       throw new Error('Summary is required and must be a string');
     }
 
+    // Allow 0 as a valid score
     return true;
   }
 

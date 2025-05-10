@@ -24,7 +24,12 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>React App</title>
+    
+    <!-- Add these meta tags to help with Cross-Origin issues -->
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="credentialless">
+    
+    <title>Feedback System</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -39,5 +44,20 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+    <!-- Load Google APIs in the correct order and without defer for better reliability -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+      // Check if the API is loaded
+      function checkGapiLoaded() {
+        if (window.gapi) {
+          console.log("Google API loaded successfully");
+        } else {
+          console.error("Google API failed to load");
+        }
+      }
+      // Call after a short delay
+      setTimeout(checkGapiLoaded, 1000);
+    </script>
+    <script src="https://accounts.google.com/gsi/client"></script>
   </body>
 </html>

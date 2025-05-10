@@ -7,6 +7,7 @@ import ErrorDisplay from './ErrorDisplay';
 import DocumentProcessor from './DocumentProcessor';
 import SubjectManager from './SubjectManager';
 import AppHeader from './AppHeader';
+import ClassroomIntegration from './ClassroomIntegration';
 
 const FeedbackSystem = () => {
   const [file, setFile] = useState(null);
@@ -16,6 +17,7 @@ const FeedbackSystem = () => {
   const [error, setError] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
+  const [showClassroomIntegration, setShowClassroomIntegration] = useState(false);
 
   // Get subjects and prompt generator
   const { subjects, generateSystemPrompt } = SubjectManager();
@@ -40,11 +42,21 @@ const FeedbackSystem = () => {
       .then(() => setServerStatus('connected'))
       .catch(() => setServerStatus('disconnected'));
   }, []);
+  
   const handleFileChange = async (event) => {
     setError('');
     setFeedback(null);
     setLoading(true);
     await processFile(event.target.files[0]);
+    setLoading(false);
+  };
+
+  const handleClassroomFileSelected = async (classroomFile) => {
+    setError('');
+    setFeedback(null);
+    setLoading(true);
+    await processFile(classroomFile);
+    setShowClassroomIntegration(false);
     setLoading(false);
   };
 
@@ -92,6 +104,19 @@ const FeedbackSystem = () => {
           <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
             Warning: Unable to connect to feedback server. Some features may be unavailable.
           </div>
+        )}
+
+        <div className="mb-4">
+          <button
+            onClick={() => setShowClassroomIntegration(!showClassroomIntegration)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            {showClassroomIntegration ? 'Hide Classroom Integration' : 'Import from Google Classroom'}
+          </button>
+        </div>
+
+        {showClassroomIntegration && (
+          <ClassroomIntegration onFileSelected={handleClassroomFileSelected} />
         )}
 
         <FeedbackForm 

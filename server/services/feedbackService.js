@@ -14,15 +14,22 @@ exports.extractJSON = (text) => {
     
     const parsedData = JSON.parse(jsonStr);
     
+    // Add debug logging
+    serviceLogger.debug('Parsed JSON data:', { 
+      score: parsedData.score,
+      hasScore: typeof parsedData.score === 'number'
+    });
+    
     // Create a feedback object from the parsed data
     return Feedback.fromJSON(parsedData);
   } catch (error) {
     serviceLogger.error('JSON extraction failed', { 
       error: error.message,
-      textSample: text.substring(0, 100) + '...'
+      textSample: text.substring(0, 100) + '...',
+      parsedData: text // Add full response for debugging
     });
     
-    throw new Error('Invalid JSON format in response');
+    throw new Error(`JSON parsing error: ${error.message}`);
   }
 };
 

@@ -1,10 +1,21 @@
 import React from 'react';
 
-const FeedbackDisplay = ({ feedback }) => {
+const FeedbackDisplay = ({ feedback, aiDetection }) => {
   if (!feedback) return null;
+  
+  // Add AI warning if detected
+  const aiWarning = aiDetection?.is_ai_generated ? (
+    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+      <p className="text-yellow-800">
+        <strong>Note:</strong> This submission appears to be AI-generated. Consider checking your policies 
+        on AI-assisted work.
+      </p>
+    </div>
+  ) : null;
   
   return (
     <div className="mt-6 p-4 bg-green-50 rounded-lg">
+      {aiWarning}
       <h3 className="text-lg font-semibold mb-2">
         Score: {feedback.score}%
       </h3>

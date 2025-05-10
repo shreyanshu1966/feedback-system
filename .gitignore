@@ -7,6 +7,7 @@ client/node_modules
 .pnp.js
 server/.env
 client/.env
+flask_server/ai_detector_model/model.safetensors
 
 # testing
 /coverage
@@ -25,3 +26,4 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 client/.env
+

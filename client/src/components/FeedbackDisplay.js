@@ -1,6 +1,6 @@
 import React from 'react';
 
-const FeedbackDisplay = ({ feedback, aiDetection }) => {
+const FeedbackDisplay = ({ feedback, aiDetection, onHighlight }) => {
   if (!feedback) return null;
   
   // Add AI warning if detected
@@ -12,7 +12,12 @@ const FeedbackDisplay = ({ feedback, aiDetection }) => {
       </p>
     </div>
   ) : null;
-  
+
+  // Handle highlight click
+  const handleHighlight = (span) => {
+    if (onHighlight) onHighlight(span);
+  };
+
   return (
     <div className="mt-6 p-4 bg-green-50 rounded-lg">
       {aiWarning}
@@ -24,8 +29,11 @@ const FeedbackDisplay = ({ feedback, aiDetection }) => {
       <ul className="list-disc pl-5 mb-4">
         {feedback.criteriaFeedback && feedback.criteriaFeedback.length > 0 ? (
           feedback.criteriaFeedback.map((item, index) => (
-            <li key={index}>
+            <li key={index} className="cursor-pointer hover:bg-yellow-100 rounded px-1" onClick={() => handleHighlight(item.highlightSpan)}>
               <strong>{item.criterion}:</strong> {item.score}% - {item.feedback}
+              {item.highlightSpan && (
+                <span className="ml-2 text-xs text-blue-500">[Highlight]</span>
+              )}
             </li>
           ))
         ) : (

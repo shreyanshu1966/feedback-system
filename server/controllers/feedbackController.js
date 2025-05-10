@@ -57,23 +57,26 @@ exports.generateFeedback = async (req, res, next) => {
 
 // Helper function to generate feedback with OpenAI
 async function generateFeedbackWithLLM(fileContent, systemPrompt) {
-  const feedbackResponse = await client.chat.completions.create({
-    messages: [
-      { 
-        role: "system", 
-        content: `${systemPrompt} Important: Return only valid JSON without markdown code blocks.` 
-      },
-      { role: "user", content: fileContent }
-    ],
-    model: config.openai.model,
-    temperature: config.openai.temperature,
-    max_tokens: config.openai.maxTokens
-  });
+  try {
+    const feedbackResponse = await client.chat.completions.create({
+      messages: [
+        { 
+          role: "system", 
+          content: `${systemPrompt} Important: Return only valid JSON without markdown code blocks.` 
+        },
+        { role: "user", content: fileContent }
+      ],
+      model: config.openai.model,
+      temperature: config.openai.temperature,
+      max_tokens: config.openai.maxTokens
+    });
 
-  const responseContent = feedbackResponse.choices[0].message.content;
-  controllerLogger.debug('Raw LLM response received', { 
-    contentLength: responseContent.length
-  });
-  
-  return responseContent;
+    return feedbackResponse.choices[0].message.content;
+  } catch (error) {
+    controllerLogger.error('LLM API error', { 
+      error: error.message,
+      stack: error.stack
+    });
+    throw new Error(`AI model error: ${error.message}`);
+  }
 }

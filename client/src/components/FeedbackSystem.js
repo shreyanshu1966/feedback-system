@@ -9,6 +9,7 @@ import SubjectManager from './SubjectManager';
 import AppHeader from './AppHeader';
 import ClassroomIntegration from './ClassroomIntegration';
 import AiDetectionDisplay from './AiDetectionDisplay';
+import HighlightedTextCanvas from './HighlightedTextCanvas';
 
 const FeedbackSystem = () => {
   const [file, setFile] = useState(null);
@@ -21,6 +22,7 @@ const FeedbackSystem = () => {
   const [showClassroomIntegration, setShowClassroomIntegration] = useState(false);
   const [aiDetection, setAiDetection] = useState(null);
   const [aiDetectionLoading, setAiDetectionLoading] = useState(false);
+  const [highlightedSpan, setHighlightedSpan] = useState(null);
 
   // Get subjects and prompt generator
   const { subjects, generateSystemPrompt } = SubjectManager();
@@ -159,7 +161,15 @@ const FeedbackSystem = () => {
         
         <AiDetectionDisplay aiDetection={aiDetection} />
         
-        <FeedbackDisplay feedback={feedback} />
+        <FeedbackDisplay feedback={feedback} onHighlight={setHighlightedSpan} />
+        {/* Render the file content with highlights if available */}
+        {fileContent && (
+          <HighlightedTextCanvas 
+            text={fileContent} 
+            feedbacks={feedback?.criteriaFeedback} 
+            activeHighlight={highlightedSpan}
+          />
+        )}
       </div>
     </div>
   );

@@ -44,6 +44,7 @@ exports.formatFeedback = (feedbackData) => {
     summary: feedbackData.summary,
     criteriaFeedback: feedbackData.criteriaFeedback,
     suggestions: feedbackData.suggestions
+    // highlightSpan is now included in criteriaFeedback items if present
   };
 };
 

@@ -1,34 +1,51 @@
-// API service for feedback generation
+import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Base URL for API
+const API_BASE_URL = 'http://localhost:5000';
 
 /**
- * Generate feedback from the server
- * 
- * @param {string} fileContent - The content of the file to analyze
+ * Generate feedback for a submitted file content
+ * @param {string} fileContent - The text content to analyze
  * @param {string} subject - The subject of the assignment
- * @param {string} systemPrompt - The prompt for the AI system
- * @returns {Promise<Object>} - Feedback data
+ * @param {string} systemPrompt - The system prompt for the AI
+ * @returns {Promise<Object>} The generated feedback
  */
 const generateFeedback = async (fileContent, subject, systemPrompt) => {
   try {
-    const response = await fetch(`${API_URL}/generate-feedback`, {
-      method: 'POST',
+    console.log('Sending request with:', {
+      contentLength: fileContent?.length,
+      subject,
+      promptLength: systemPrompt?.length
+    });
+    
+    // Send request to backend
+    const response = await axios.post(`${API_BASE_URL}/generate-feedback`, {
+      fileContent,
+      subject,
+      systemPrompt
+    }, {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ fileContent, subject, systemPrompt }),
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error generating feedback');
-    }
-
-    return await response.json();
+    
+    return response.data;
   } catch (error) {
     console.error('Feedback generation error:', error);
-    throw error;
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received:', error.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error message:', error.message);
+    }
+    throw new Error(`Error generating feedback: ${error.response?.data?.message || error.message}`);
   }
 };
 
@@ -39,7 +56,7 @@ const generateFeedback = async (fileContent, subject, systemPrompt) => {
  */
 const checkServerHealth = async () => {
   try {
-    const response = await fetch(`${API_URL}/health`);
+    const response = await fetch(`${API_BASE_URL}/health`);
     
     if (!response.ok) {
       throw new Error('Server health check failed');

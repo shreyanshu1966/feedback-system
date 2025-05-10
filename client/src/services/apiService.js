@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Base URL for API
+// Define separate base URLs for different services
 const API_BASE_URL = 'http://localhost:5000';
+const AI_DETECTOR_URL = 'http://localhost:5001';
 
 /**
  * Generate feedback for a submitted file content
@@ -69,7 +70,30 @@ const checkServerHealth = async () => {
   }
 };
 
+/**
+ * Detect if content is AI generated
+ * @param {string} text - The text content to analyze
+ * @returns {Promise<Object>} The AI detection results
+ */
+const detectAiContent = async (text) => {
+  try {
+    const response = await axios.post(`${AI_DETECTOR_URL}/detect-ai`, {
+      text
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('AI detection error:', error);
+    throw error;
+  }
+};
+
 export {
   generateFeedback,
-  checkServerHealth
+  checkServerHealth,
+  detectAiContent
 };

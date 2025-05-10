@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { setupPdfWorker } from '../services/documentService';
-import { generateFeedback, checkServerHealth } from '../services/apiService';
+import { generateFeedback, checkServerHealth, detectAiContent } from '../services/apiService';
 import FeedbackForm from './FeedbackForm';
 import FeedbackDisplay from './FeedbackDisplay';
 import ErrorDisplay from './ErrorDisplay';
@@ -8,6 +8,7 @@ import DocumentProcessor from './DocumentProcessor';
 import SubjectManager from './SubjectManager';
 import AppHeader from './AppHeader';
 import ClassroomIntegration from './ClassroomIntegration';
+import AiDetectionDisplay from './AiDetectionDisplay';
 
 const FeedbackSystem = () => {
   const [file, setFile] = useState(null);
@@ -18,6 +19,8 @@ const FeedbackSystem = () => {
   const [fileContent, setFileContent] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
   const [showClassroomIntegration, setShowClassroomIntegration] = useState(false);
+  const [aiDetection, setAiDetection] = useState(null);
+  const [aiDetectionLoading, setAiDetectionLoading] = useState(false);
 
   // Get subjects and prompt generator
   const { subjects, generateSystemPrompt } = SubjectManager();
@@ -73,16 +76,32 @@ const FeedbackSystem = () => {
 
     setLoading(true);
     setError('');
+    setAiDetection(null);
 
     try {
+      // Run AI detection in parallel with feedback generation
+      setAiDetectionLoading(true);
+      const aiDetectionPromise = detectAiContent(fileContent);
+      
+      // Generate feedback
       const systemPrompt = generateSystemPrompt(subject);
       const feedbackData = await generateFeedback(fileContent, subject, systemPrompt);
       setFeedback(feedbackData || { summary: 'No feedback available.', score: 0 });
+      
+      // Get AI detection result
+      const aiResult = await aiDetectionPromise;
+      setAiDetection(aiResult);
     } catch (err) {
-      setError('Error generating feedback. Please try again.');
-      console.error('Feedback generation error:', err);
+      if (err.message.includes('AI detection')) {
+        console.error('AI detection error:', err);
+        // Continue with feedback if AI detection fails
+      } else {
+        setError('Error generating feedback. Please try again.');
+        console.error('Feedback generation error:', err);
+      }
     } finally {
       setLoading(false);
+      setAiDetectionLoading(false);
     }
   };
 
@@ -130,6 +149,15 @@ const FeedbackSystem = () => {
         />
 
         <ErrorDisplay error={error} />
+        
+        {aiDetectionLoading && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700 mr-2"></div>
+            <span>Analyzing content origin...</span>
+          </div>
+        )}
+        
+        <AiDetectionDisplay aiDetection={aiDetection} />
         
         <FeedbackDisplay feedback={feedback} />
       </div>

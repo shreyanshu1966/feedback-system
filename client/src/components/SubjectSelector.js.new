@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Check, Lock, BookOpen, Code, Pencil, Clock, Beaker } from 'lucide-react';
+import { ChevronDown, Check, Lock, BookOpen, Code, Pencil, Clock, Flask } from 'lucide-react';
 
 const SubjectSelector = ({ subjects, value, onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,9 +44,11 @@ const SubjectSelector = ({ subjects, value, onChange, disabled = false }) => {
       case 'english':
         return <Pencil className="w-6 h-6 text-indigo-500" />;
       case 'coding':
-        return <Code className="w-6 h-6 text-green-500" />;      case 'history':
-        return <Clock className="w-6 h-6 text-amber-500" />;      case 'science':
-        return <Beaker className="w-6 h-6 text-purple-500" />;
+        return <Code className="w-6 h-6 text-green-500" />;
+      case 'history':
+        return <Clock className="w-6 h-6 text-amber-500" />;
+      case 'science':
+        return <Flask className="w-6 h-6 text-purple-500" />;
       default:
         return <BookOpen className="w-6 h-6 text-gray-500" />;
     }
@@ -118,10 +120,12 @@ const SubjectSelector = ({ subjects, value, onChange, disabled = false }) => {
                 </div>
                 {value === sub.id && <Check className="w-5 h-5 text-blue-600 ml-2" />}
               </li>
-            ))}          </ul>
+            ))}
+          </ul>
         </div>
       )}
-        <style jsx>{`
+      
+      <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-8px); }
           to { opacity: 1; transform: translateY(0); }

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 // import { gsap } from 'gsap';
 
 // Interactive Particles Component
-const ParticleField = ({ count = 1000 }) => {
+const ParticleField = ({ count = 500 }) => {  // Reduced particle count for better performance
   const { viewport, mouse } = useThree();
   const particlesRef = useRef();
   const [initialized, setInitialized] = useState(false);
@@ -61,9 +61,9 @@ const ParticleField = ({ count = 1000 }) => {
     // Make sure particles and geometry exist
     if (!particlesRef.current || !initialized) return;
     
-    // Update rotation
-    particlesRef.current.rotation.x = elapsedTime * 0.05;
-    particlesRef.current.rotation.y = elapsedTime * 0.075;
+    // Update rotation with lower frequency for better performance
+    particlesRef.current.rotation.x = elapsedTime * 0.02;
+    particlesRef.current.rotation.y = elapsedTime * 0.03;
     
     // Get position attribute with safety check
     const positionAttr = particlesRef.current.geometry.attributes.position;
@@ -73,9 +73,9 @@ const ParticleField = ({ count = 1000 }) => {
     const mouseX = (mouse.x * viewport.width) / 2;
     const mouseY = (mouse.y * viewport.height) / 2;
     
-    // Only update every few frames for performance
-    if (Math.floor(elapsedTime * 10) % 2 === 0) {
-      for (let i = 0; i < count; i++) {
+    // Update less frequently for better performance - every 6 frames instead of 2
+    if (Math.floor(elapsedTime * 10) % 6 === 0) {
+      for (let i = 0; i < count; i += 2) { // Process every other particle to improve performance
         const i3 = i * 3;
         const x = positions[i3];
         const y = positions[i3 + 1];
@@ -85,10 +85,10 @@ const ParticleField = ({ count = 1000 }) => {
         const dy = mouseY - y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // Move particles slightly toward mouse
-        if (dist < 3) {
-          positions[i3] += dx * 0.01;
-          positions[i3 + 1] += dy * 0.01;
+        // Move particles slightly toward mouse, but only if they're close
+        if (dist < 2) {
+          positions[i3] += dx * 0.005;
+          positions[i3 + 1] += dy * 0.005;
         }
       }
       
@@ -106,13 +106,13 @@ const ParticleField = ({ count = 1000 }) => {
         transparent
         alphaMap={useMemo(() => {
           const canvas = document.createElement('canvas');
-          canvas.width = 128;
-          canvas.height = 128;
+          canvas.width = 64; // Reduced from 128
+          canvas.height = 64; // Reduced from 128
           const context = canvas.getContext('2d');
           
           // Create radial gradient
           const gradient = context.createRadialGradient(
-            64, 64, 0, 64, 64, 64
+            32, 32, 0, 32, 32, 32 // Adjusted for new canvas size
           );
           
           // Add colors to gradient
@@ -123,10 +123,13 @@ const ParticleField = ({ count = 1000 }) => {
           
           // Fill with gradient
           context.fillStyle = gradient;
-          context.fillRect(0, 0, 128, 128);
+          context.fillRect(0, 0, 64, 64);
           
-          // Create and return texture
+          // Create and return optimized texture
           const texture = new THREE.CanvasTexture(canvas);
+          texture.generateMipmaps = false;
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
           texture.needsUpdate = true;
           return texture;
         }, [])}
@@ -148,51 +151,54 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
   const { mouse } = useThree();
   
   useFrame((state, delta) => {
-    // Follow mouse movement slightly
+    // Follow mouse movement slightly - less responsive for better performance
     if (modelRef.current) {
       modelRef.current.rotation.y = THREE.MathUtils.lerp(
         modelRef.current.rotation.y,
-        mouse.x * 0.5,
-        0.05
+        mouse.x * 0.3,
+        0.03
       );
       modelRef.current.rotation.x = THREE.MathUtils.lerp(
         modelRef.current.rotation.x,
-        -mouse.y * 0.2,
-        0.05
+        -mouse.y * 0.1,
+        0.03
       );
     }
     
-    if (bookRef.current) {
-      bookRef.current.rotation.y += delta * 0.5;
-      // Pages opening and closing effect
-      bookRef.current.children[1].position.y = Math.abs(Math.sin(state.clock.elapsedTime * 0.5)) * 0.3 + 0.2;
-      bookRef.current.children[1].rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
-    }
-    
-    if (globeRef.current) {
-      globeRef.current.rotation.y += delta * 0.3;
-      // Pulse effect
-      const scale = 1 + Math.sin(state.clock.elapsedTime) * 0.04;
-      globeRef.current.scale.set(scale, scale, scale);
-    }
-    
-    if (pencilRef.current) {
-      pencilRef.current.rotation.z = Math.sin(state.clock.elapsedTime) * 0.1;
-      // Writing motion
-      pencilRef.current.position.x = -2.5 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
-      pencilRef.current.position.z = Math.cos(state.clock.elapsedTime * 2) * 0.2;
-    }
-    
-    if (brainRef.current) {
-      // Pulsating brain effect
-      const pulseScale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
-      brainRef.current.scale.set(pulseScale, pulseScale, pulseScale);
-    }
-    
-    if (lightBulbRef.current) {
-      // Flickering light effect
-      lightBulbRef.current.children[1].material.emissiveIntensity = 
-        0.5 + Math.sin(state.clock.elapsedTime * 10) * 0.2 + Math.random() * 0.1;
+    // Only update animations every 2 frames for better performance
+    if (Math.floor(state.clock.elapsedTime * 10) % 2 === 0) {
+      if (bookRef.current) {
+        bookRef.current.rotation.y += delta * 0.3; // Reduced rotation speed
+        // Pages opening and closing effect - simplified animation
+        bookRef.current.children[1].position.y = Math.abs(Math.sin(state.clock.elapsedTime * 0.3)) * 0.25 + 0.2;
+        bookRef.current.children[1].rotation.x = Math.sin(state.clock.elapsedTime * 0.3) * 0.15;
+      }
+      
+      if (globeRef.current) {
+        globeRef.current.rotation.y += delta * 0.2; // Reduced rotation speed
+        // Pulse effect - less pronounced
+        const scale = 1 + Math.sin(state.clock.elapsedTime * 0.7) * 0.02;
+        globeRef.current.scale.set(scale, scale, scale);
+      }
+      
+      if (pencilRef.current) {
+        pencilRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.7) * 0.08;
+        // Writing motion - simplified
+        pencilRef.current.position.x = -2.5 + Math.sin(state.clock.elapsedTime * 1.5) * 0.15;
+        pencilRef.current.position.z = Math.cos(state.clock.elapsedTime * 1.5) * 0.15;
+      }
+      
+      if (brainRef.current) {
+        // Pulsating brain effect - simplified
+        const pulseScale = 1 + Math.sin(state.clock.elapsedTime * 1.5) * 0.03;
+        brainRef.current.scale.set(pulseScale, pulseScale, pulseScale);
+      }
+      
+      if (lightBulbRef.current) {
+        // Flickering light effect - simplified, less random
+        lightBulbRef.current.children[1].material.emissiveIntensity = 
+          0.5 + Math.sin(state.clock.elapsedTime * 7) * 0.2;
+      }
     }
   });
 
@@ -213,19 +219,19 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
           <boxGeometry args={[1.8, 0.1, 2.8]} />
           <meshStandardMaterial color="#FFFFFF" />
         </mesh>
-        {/* Text lines on pages */}
-        {[...Array(5)].map((_, i) => (
-          <mesh key={i} position={[0, 0.16, -1 + i * 0.5]}>
+        {/* Text lines on pages - reduced to 3 */}
+        {[...Array(3)].map((_, i) => (
+          <mesh key={i} position={[0, 0.16, -0.8 + i * 0.8]}>
             <boxGeometry args={[1.4, 0.02, 0.1]} />
             <meshStandardMaterial color="#111827" />
           </mesh>
         ))}
       </group>
 
-      {/* Globe */}
+      {/* Globe - reduced geometry detail */}
       <group ref={globeRef} position={[3, 1.5, 0]}>
         <mesh castShadow receiveShadow>
-          <sphereGeometry args={[1, 64, 64]} />
+          <sphereGeometry args={[1, 32, 32]} /> {/* Reduced segment count */}
           <meshStandardMaterial 
             color="#2563EB" 
             metalness={0.2}
@@ -235,7 +241,7 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
           />
         </mesh>
         <mesh>
-          <sphereGeometry args={[1.05, 64, 64]} />
+          <sphereGeometry args={[1.05, 32, 32]} /> {/* Reduced segment count */}
           <meshStandardMaterial 
             color="#3B82F6" 
             wireframe={true} 
@@ -243,44 +249,44 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
             opacity={0.3} 
           />
         </mesh>
-        {/* Continents */}
-        {[...Array(5)].map((_, i) => (
+        {/* Continents - reduced from 5 to 3 */}
+        {[...Array(3)].map((_, i) => (
           <mesh key={i} position={[
-            Math.sin(i * Math.PI * 0.4) * 0.8,
-            Math.cos(i * Math.PI * 0.4) * 0.8,
-            Math.sin(i * Math.PI * 0.6) * 0.8,
+            Math.sin(i * Math.PI * 0.5) * 0.8,
+            Math.cos(i * Math.PI * 0.5) * 0.8,
+            Math.sin(i * Math.PI * 0.7) * 0.8,
           ]}>
-            <sphereGeometry args={[0.2 + Math.random() * 0.1, 16, 16]} />
+            <sphereGeometry args={[0.2 + Math.random() * 0.1, 12, 12]} /> {/* Reduced detail */}
             <meshStandardMaterial color="#10B981" />
           </mesh>
         ))}
       </group>
 
-      {/* Pencil */}
+      {/* Pencil - reduced geometry detail */}
       <group ref={pencilRef} position={[-2.5, 1, 0]} rotation={[0, 0, Math.PI / 4]}>
         <mesh castShadow receiveShadow position={[0, 0, 0]}>
-          <cylinderGeometry args={[0.1, 0.1, 3, 32]} />
+          <cylinderGeometry args={[0.1, 0.1, 3, 16]} /> {/* Reduced segment count */}
           <meshStandardMaterial color="#FDBA74" />
         </mesh>
         <mesh castShadow receiveShadow position={[0, 1.6, 0]}>
-          <coneGeometry args={[0.1, 0.5, 32]} />
+          <coneGeometry args={[0.1, 0.5, 16]} /> {/* Reduced segment count */}
           <meshStandardMaterial color="#333333" />
         </mesh>
       </group>
       
-      {/* Brain */}
+      {/* Brain - reduced geometry and elements */}
       <group ref={brainRef} position={[-2, 2.5, 1]}>
         <mesh castShadow receiveShadow>
-          <sphereGeometry args={[0.8, 32, 32]} />
+          <sphereGeometry args={[0.8, 24, 24]} /> {/* Reduced segment count */}
           <MeshDistortMaterial
             color="#EC4899"
-            speed={2}
-            distort={0.3}
+            speed={1} // Reduced speed
+            distort={0.2} // Reduced distortion
             radius={1}
           />
         </mesh>
-        {/* Neurons */}
-        {[...Array(15)].map((_, i) => (
+        {/* Neurons - reduced from 15 to 8 */}
+        {[...Array(8)].map((_, i) => (
           <mesh 
             key={i} 
             position={[
@@ -290,7 +296,7 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
             ]}
             scale={0.08 + Math.random() * 0.05}
           >
-            <sphereGeometry args={[1, 16, 16]} />
+            <sphereGeometry args={[1, 8, 8]} /> {/* Reduced segment count */}
             <meshStandardMaterial 
               color="#F472B6" 
               emissive="#9D174D"
@@ -298,8 +304,8 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
             />
           </mesh>
         ))}
-        {/* Neuron connections */}
-        {[...Array(20)].map((_, i) => (
+        {/* Neuron connections - reduced from 20 to 10 */}
+        {[...Array(10)].map((_, i) => (
           <mesh key={i + 'line'}>
             <tubeGeometry 
               args={[
@@ -315,9 +321,9 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
                     (Math.random() - 0.5) * 1.6
                   )
                 ),
-                16,
+                8, // Reduced tube segments
                 0.02,
-                8
+                6  // Reduced radial segments
               ]} 
             />
             <meshStandardMaterial 
@@ -329,10 +335,10 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
         ))}
       </group>
       
-      {/* Light Bulb */}
+      {/* Light Bulb - reduced geometry */}
       <group ref={lightBulbRef} position={[2, 2.5, 1.5]}>
         <mesh castShadow receiveShadow>
-          <sphereGeometry args={[0.5, 32, 32]} />
+          <sphereGeometry args={[0.5, 24, 24]} /> {/* Reduced segment count */}
           <meshStandardMaterial 
             color="#FBBF24" 
             transparent
@@ -340,7 +346,7 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
           />
         </mesh>
         <mesh>
-          <sphereGeometry args={[0.45, 32, 32]} />
+          <sphereGeometry args={[0.45, 24, 24]} /> {/* Reduced segment count */}
           <meshStandardMaterial 
             color="#FBBF24" 
             emissive="#FBBF24"
@@ -351,11 +357,13 @@ const EducationalModel = ({ position = [0, 0, 0], scale = 1 }) => {
         </mesh>
         {/* Bulb base */}
         <mesh position={[0, -0.6, 0]}>
-          <cylinderGeometry args={[0.2, 0.2, 0.2, 32]} />
+          <cylinderGeometry args={[0.2, 0.2, 0.2, 16]} /> {/* Reduced segment count */}
           <meshStandardMaterial color="#78716C" metalness={0.8} roughness={0.2} />
         </mesh>
-      </group>      {/* Floating particles */}
-      <Stars radius={12} depth={50} count={1000} factor={5} saturation={0.5} fade speed={1.5} />
+      </group>
+      
+      {/* Reduced star count */}
+      <Stars radius={12} depth={50} count={500} factor={5} saturation={0.5} fade speed={1} />
     </group>
   );
 };
@@ -396,10 +404,11 @@ const EnhancedBackground = () => {
 
   // Use the texture loader with the defined material
   useEffect(() => {
-    // Generate a programmatic background texture
+    // Generate a programmatic background texture - optimized
     const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 1024;
+    // Reduced texture resolution for better performance
+    canvas.width = 512;
+    canvas.height = 512;
     const context = canvas.getContext('2d');
     
     // Create gradient background
@@ -410,9 +419,10 @@ const EnhancedBackground = () => {
     context.fillStyle = gradient;
     context.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Add some noise/stars
+    // Add some noise/stars - reduced count for better performance
     context.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    for (let i = 0; i < 1000; i++) {
+    // Reduce number of stars from 1000 to 300
+    for (let i = 0; i < 300; i++) {
       const x = Math.random() * canvas.width;
       const y = Math.random() * canvas.height;
       const size = Math.random() * 2;
@@ -421,15 +431,32 @@ const EnhancedBackground = () => {
     
     // Create and apply texture
     const texture = new THREE.CanvasTexture(canvas);
+    // Enable texture compression
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    
     backgroundMaterial.map = texture;
     backgroundMaterial.needsUpdate = true;
     
-    console.info('Using generated background texture');
+    console.info('Using optimized background texture');
   }, [backgroundMaterial]);
   
   return (
     <div className="absolute inset-0 -z-10">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 2, 10], fov: 45 }}>
+      <Canvas 
+        shadows={false} // Disable shadows for better performance
+        dpr={window.devicePixelRatio > 1 ? 1.5 : 1} // Limit DPR for better performance
+        frameloop="demand" // Only render when necessary
+        gl={{ 
+          powerPreference: "high-performance",
+          antialias: false, // Disable antialiasing for better performance
+          depth: true,
+          stencil: false,
+          alpha: true
+        }}
+        camera={{ position: [0, 2, 10], fov: 45 }}
+      >
         <color attach="background" args={['#050816']} />
         <fog attach="fog" args={['#050816', 5, 20]} />
         
@@ -439,23 +466,21 @@ const EnhancedBackground = () => {
         <directionalLight 
           position={[5, 5, 5]} 
           intensity={1.2} 
-          castShadow 
-          shadow-mapSize-width={2048} 
-          shadow-mapSize-height={2048}
+          castShadow={false} // Disable shadow casting for better performance
         />
         <pointLight position={[2, 2.5, 1.5]} intensity={1.5} color="#FBBF24" />
         <pointLight position={[-2, 2.5, 1]} intensity={0.5} color="#EC4899" />
         
         <React.Suspense fallback={null}>
           <Float 
-            speed={1.5} 
-            rotationIntensity={0.2} 
-            floatIntensity={0.5}
-            floatingRange={[-0.2, 0.2]}
+            speed={1} // Reduced speed for better performance
+            rotationIntensity={0.1} // Reduced intensity for better performance
+            floatIntensity={0.3} // Reduced intensity for better performance
+            floatingRange={[-0.1, 0.1]} // Reduced range for better performance
           >
             <EducationalModel position={[0, -1, 0]} scale={0.8} />
           </Float>
-          <ParticleField count={800} />
+          <ParticleField count={400} /> {/* Further reduced particle count */}
         </React.Suspense>
         
         <OrbitControls 
@@ -471,12 +496,12 @@ const EnhancedBackground = () => {
   );
 };
 
-// Function to create a particle texture
+// Function to create a particle texture - optimized
 const createParticleTexture = () => {
-  // Create the canvas and context
+  // Create the canvas and context - reduced size
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 64; // Reduced from 128
+  canvas.height = 64; // Reduced from 128
   const context = canvas.getContext('2d');
   
   // Create and fill the gradient
@@ -493,19 +518,13 @@ const createParticleTexture = () => {
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Return the texture instead of downloading it
-  return new THREE.CanvasTexture(canvas);
+  // Create optimized texture
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   
-  // Remove the auto-download code:
-  // const dataURL = canvas.toDataURL();
-  // const img = new Image();
-  // img.src = dataURL;
-  // const link = document.createElement('a');
-  // link.href = dataURL;
-  // link.download = 'particleTexture.png';
-  // document.body.appendChild(link);
-  // link.click();
-  // document.body.removeChild(link);
+  return texture;
 };
 
 export default EnhancedBackground;

@@ -11,7 +11,8 @@ const FeedbackForm = ({
   onSubjectChange, 
   onSubmit, 
   loading, 
-  subjects 
+  subjects, 
+  onAddSubject // <-- add this prop
 }) => {  // Determine the current step
   const steps = [
     { 
@@ -143,6 +144,7 @@ const FeedbackForm = ({
           value={subject}
           onChange={onSubjectChange}
           disabled={!file}
+          onAddSubject={onAddSubject} // <-- pass down
         />
         
         {file && !subject && (

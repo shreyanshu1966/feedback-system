@@ -1,3 +1,3 @@
-import HighlightedTextCanvas from './HighlightedTextCanvas';
+import HighlightedTextCanvas from '../HighlightedTextCanvas';
 
 export default HighlightedTextCanvas;

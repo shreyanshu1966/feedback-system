@@ -21,10 +21,20 @@ import ScrollingMarquee from "./animations/ScrollingMarquee";
 import AssignmentPreviewCard from "./animations/AssignmentPreviewCard";
 import '../utils/customGsap';
 
-// Register GSAP plugins
+// Register GSAP plugins with optimized settings
 gsap.registerPlugin(ScrollTrigger, TextPlugin, ScrollToPlugin, CustomEase);
 
-// Create custom eases for animations
+// Force GSAP to use requestAnimationFrame for better performance
+gsap.ticker.fps(0);
+
+// Optimize GSAP with default performance settings
+gsap.defaults({
+  overwrite: 'auto',
+  ease: 'power2.out',
+  duration: 0.5
+});
+
+// Create custom eases for animations - reduced complexity
 CustomEase.create("bounceOut", "M0,0 C0.0,0.0 0.2,0.4 0.4,0.8 0.6,1.2 0.8,1.0 1.0,1.0");
 CustomEase.create("smoothBounce", "M0,0 C0.12,0 0.3,1 0.4,1 0.7,1 0.8,0 1,0");
 
@@ -487,9 +497,16 @@ const EnhancedLandingPage = ({ disable3D = false }) => {
             <EnhancedBackground />
           </Suspense>
         )}
-        
-        {/* Static background as fallback when 3D is disabled */}
-        {disable3D && <div className="fixed inset-0 bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-900" />}
+          {/* Static background as fallback when 3D is disabled - optimized with a static image */}
+        {disable3D && (
+          <div className="fixed inset-0 bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-900">
+            {/* Simple star field for a lightweight effect */}
+            <div className="absolute inset-0 opacity-40" style={{
+              backgroundImage: 'radial-gradient(white 1px, transparent 1px)',
+              backgroundSize: '50px 50px'
+            }} />
+          </div>
+        )}
         
         {/* Custom cursor */}
         <CustomCursor />

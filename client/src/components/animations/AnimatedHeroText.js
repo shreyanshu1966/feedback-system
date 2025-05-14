@@ -220,13 +220,11 @@ const AnimatedHeroText = () => {
       <div className="inline-flex items-center mb-2">
         <Sparkles ref={sparklesRef} className="h-6 w-6 text-indigo-400 mr-2" />
         <span className="text-indigo-400 font-medium">Intelligent Education Solutions</span>
-      </div>
-      
-      <h1 
+      </div>      <h1 
         ref={headingRef} 
         className="text-4xl md:text-6xl font-bold mb-6 leading-tight"
       >
-        Elevate academic integrity with <span className="highlight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">intelligent feedback</span>
+        Elevate academic integrity with <span className="highlight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600 font-extrabold" style={{ WebkitBackgroundClip: 'text', backgroundClip: 'text' }}>intelligent feedback</span>
       </h1>
       
       <p 

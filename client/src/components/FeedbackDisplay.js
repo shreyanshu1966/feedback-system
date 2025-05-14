@@ -32,9 +32,8 @@ const FeedbackDisplay = ({ feedback, aiDetection, onHighlight }) => {
         <p className="text-yellow-700">
           This submission appears to be AI-generated. Consider checking your policies 
           on AI-assisted work.
-        </p>
-        <div className="mt-3 text-sm bg-white bg-opacity-50 py-2 px-3 rounded-lg inline-flex items-center">
-          AI detection confidence: <strong className="ml-1">{Math.round(aiDetection.confidence * 100)}%</strong>
+        </p>        <div className="mt-3 text-sm bg-white bg-opacity-50 py-2 px-3 rounded-lg inline-flex items-center">
+          AI detection confidence: <strong className="ml-1">{Math.round(aiDetection.ai_probability)}%</strong>
         </div>
       </div>
     </div>

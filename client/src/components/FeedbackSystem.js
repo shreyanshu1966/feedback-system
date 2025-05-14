@@ -411,7 +411,7 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
                 
                 {feedback && (
                   <div className="animate-fadeIn">
-                    <FeedbackDisplay feedback={feedback} onHighlight={setHighlightedSpan} />
+                    <FeedbackDisplay feedback={feedback} aiDetection={aiDetection} onHighlight={setHighlightedSpan} />
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@ import FeedbackForm from './FeedbackForm';
 import FeedbackDisplay from './FeedbackDisplay';
 import ErrorDisplay from './ErrorDisplay';
 import DocumentProcessor from './DocumentProcessor';
-import SubjectManager from './SubjectManager';
+import useSubjectManager from './SubjectManager';
 import AppHeader from './AppHeader';
 import ClassroomIntegration from './ClassroomIntegration';
 import AiDetectionDisplay from './AiDetectionDisplay';
@@ -45,7 +45,7 @@ const FeedbackSystem = () => {
   const textAnalysisRef = useRef(null);
   const feedbackFormRef = useRef(null);
 
-  const { subjects, generateSystemPrompt } = SubjectManager();
+  const { subjects, addSubject, generateSystemPrompt } = useSubjectManager();
   const { processFile, processing } = DocumentProcessor({
     onFileProcessed: (selectedFile, content) => {
       setFile(selectedFile);
@@ -331,6 +331,12 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
   };
   
   const currentThemeClasses = themes[currentTheme];
+  
+  // Add subject handler for custom rubric
+  const handleAddSubject = (name, criteria) => {
+    return addSubject(name, criteria);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 py-8 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 animate-fadeIn">
@@ -454,6 +460,7 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
               onSubmit={handleGenerateFeedback}
               loading={loading || processing}
               subjects={subjects}
+              onAddSubject={handleAddSubject}
             />
           </div>
 

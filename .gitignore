@@ -8,6 +8,8 @@ client/node_modules
 server/.env
 client/.env
 flask_server/ai_detector_model/model.safetensors
+client/build
+
 
 # testing
 /coverage

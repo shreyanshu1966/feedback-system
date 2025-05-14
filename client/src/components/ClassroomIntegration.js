@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { gapi } from 'gapi-script';
 import { initGoogleApi, getCourses, getAssignments, getSubmissions, downloadFile } from '../services/classroomService';
 
-const ClassroomIntegration = ({ onFileSelected }) => {
+const ClassroomIntegration = ({ onFileSelected, onMultipleFilesSelected }) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('');
   const [assignments, setAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState('');
   const [submissions, setSubmissions] = useState([]);
+  const [selectedSubmissions, setSelectedSubmissions] = useState({});
+  const [selectAll, setSelectAll] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [auth, setAuth] = useState(null);
@@ -154,11 +156,13 @@ const ClassroomIntegration = ({ onFileSelected }) => {
     }
   };
 
-  // Handle assignment selection
+  // Reset selection state when assignment changes
   const handleAssignmentChange = async (e) => {
     const assignmentId = e.target.value;
     setSelectedAssignment(assignmentId);
     setSubmissions([]); // Clear existing submissions
+    setSelectedSubmissions({}); // Clear selections
+    setSelectAll(false);
     
     if (assignmentId && selectedCourse) {
       try {
@@ -248,6 +252,175 @@ const ClassroomIntegration = ({ onFileSelected }) => {
       setError('Error downloading submission: ' + error.message);
       console.error('Submission download error:', error, 'Submission data:', submission);
       setLoading(false);
+    }
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (e) => {
+    const checked = e.target.checked;
+    setSelectAll(checked);
+    
+    // Create a new selection state with all submissions selected/deselected
+    const newSelections = {};
+    submissions.forEach(submission => {
+      // Only allow selection if the submission has an attachment
+      const hasAttachment = hasValidAttachment(submission);
+      if (hasAttachment) {
+        newSelections[submission.id] = checked;
+      }
+    });
+    
+    setSelectedSubmissions(newSelections);
+  };
+  
+  // Handle individual submission selection
+  const handleSelectSubmission = (submissionId, hasAttachment) => (e) => {
+    if (!hasAttachment) return; // Don't allow selection if no attachment
+    
+    const checked = e.target.checked;
+    setSelectedSubmissions(prev => ({
+      ...prev,
+      [submissionId]: checked
+    }));
+    
+    // Update select all status
+    const allSelected = submissions.every(submission => {
+      const hasAttach = hasValidAttachment(submission);
+      return !hasAttach || (submission.id === submissionId ? checked : !!selectedSubmissions[submission.id]);
+    });
+    
+    setSelectAll(allSelected);
+  };
+  
+  // Helper function to check if a submission has a valid attachment
+  const hasValidAttachment = (submission) => {
+    if (!submission || !submission.assignmentSubmission) return false;
+    
+    if (submission.assignmentSubmission.attachments && 
+        submission.assignmentSubmission.attachments.length > 0) {
+      return true;
+    } else if (submission.assignmentSubmission.text) {
+      return true;
+    }
+    
+    return false;
+  };
+    // Process all selected submissions
+  const handleProcessSelectedSubmissions = async () => {
+    const selectedIds = Object.entries(selectedSubmissions)
+      .filter(([_, selected]) => selected)
+      .map(([id]) => id);
+      
+    if (selectedIds.length === 0) {
+      setError('Please select at least one submission to process.');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Collect all selected submissions
+      const selectedSubmissionData = submissions.filter(
+        submission => selectedIds.includes(submission.id)
+      );
+      
+      console.log(`Processing ${selectedIds.length} selected submissions`);
+      
+      // Download and process all selected submissions
+      const processedFiles = [];
+      
+      // Helper function to handle file download and processing
+      const downloadAndAddToArray = async (fileId, fileName, submission) => {
+        try {
+          // Download the file 
+          const file = await downloadFile(fileId);
+          
+          // Create a file with metadata
+          const fileWithMeta = new File(
+            [await file.arrayBuffer()],
+            `${submission.userId}_${file.name || fileName}`,
+            { type: file.type }
+          );
+          
+          // Add metadata to the file
+          fileWithMeta.userId = submission.userId;
+          fileWithMeta.submissionId = submission.id;
+          
+          processedFiles.push(fileWithMeta);
+          return true;
+        } catch (error) {
+          console.error(`Error downloading file for submission ${submission.id}:`, error);
+          return false;
+        }
+      };
+      
+      // Process each submission
+      for (const submission of selectedSubmissionData) {
+        try {
+          if (submission.assignmentSubmission && submission.assignmentSubmission.attachments) {
+            const attachments = submission.assignmentSubmission.attachments;
+            
+            if (attachments.length > 0) {
+              const attachment = attachments[0];
+              
+              if (attachment.driveFile) {
+                await downloadAndAddToArray(
+                  attachment.driveFile.id, 
+                  attachment.driveFile.title || `submission_${submission.id}`,
+                  submission
+                );
+              }
+            } else if (submission.assignmentSubmission.text) {
+              // Handle text submission
+              const textContent = submission.assignmentSubmission.text;
+              const blob = new Blob([textContent], { type: 'text/plain' });
+              const file = new File([blob], `${submission.userId}_submission_${submission.id}.txt`, { type: 'text/plain' });
+              
+              // Add metadata
+              file.userId = submission.userId;
+              file.submissionId = submission.id;
+              
+              processedFiles.push(file);
+            }
+          } else if (submission.assignmentSubmission && submission.assignmentSubmission.text) {
+            // Handle text submission directly
+            const textContent = submission.assignmentSubmission.text;
+            const blob = new Blob([textContent], { type: 'text/plain' });
+            const file = new File([blob], `${submission.userId}_submission_${submission.id}.txt`, { type: 'text/plain' });
+            
+            // Add metadata
+            file.userId = submission.userId;
+            file.submissionId = submission.id;
+            
+            processedFiles.push(file);
+          }
+        } catch (err) {
+          console.error(`Error processing submission ${submission.id}:`, err);
+          // Continue with other submissions
+        }
+      }
+      
+      setLoading(false);
+      
+      if (processedFiles.length === 0) {
+        setError('Failed to process any of the selected submissions.');
+        return;
+      }
+      
+      console.log(`Successfully processed ${processedFiles.length} files`);
+      
+      // Pass the processed files to the parent component
+      if (onMultipleFilesSelected && processedFiles.length > 1) {
+        onMultipleFilesSelected(processedFiles);
+      } else if (processedFiles.length > 0) {
+        // If multiple files handler not provided or only one file, use single file handler
+        onFileSelected(processedFiles[0]);
+      }
+    } catch (error) {
+      setLoading(false);
+      setError('Error processing submissions: ' + (error.message || 'Unknown error'));
+      console.error('Batch submission processing error:', error);
     }
   };
 
@@ -342,65 +515,114 @@ const ClassroomIntegration = ({ onFileSelected }) => {
               </select>
             </div>
           )}
-          
-          {selectedAssignment && submissions.length > 0 && (
+            {selectedAssignment && submissions.length > 0 && (
             <div>
-              <h4 className="font-medium mb-2">Student Submissions ({submissions.length})</h4>
-              <ul className="divide-y">
-                {submissions.map((submission) => {
-                  // Determine submission type for display
-                  let submissionType = "Unknown";
-                  let hasAttachment = false;
-                  
-                  if (submission.assignmentSubmission) {
-                    if (submission.assignmentSubmission.attachments && 
-                        submission.assignmentSubmission.attachments.length > 0) {
-                      const attachment = submission.assignmentSubmission.attachments[0];
-                      hasAttachment = true;
-                      if (attachment.driveFile) {
-                        submissionType = "File";
-                      } else if (attachment.link) {
-                        submissionType = "Link";
-                      } else if (attachment.youtubeVideo) {
-                        submissionType = "YouTube";
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium">Student Submissions ({submissions.length})</h4>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="selectAll"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    className="mr-2"
+                  />
+                  <label htmlFor="selectAll" className="text-sm">Select All Valid Submissions</label>
+                  <button
+                    onClick={handleProcessSelectedSubmissions}
+                    className="ml-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                    disabled={loading || Object.keys(selectedSubmissions).filter(id => selectedSubmissions[id]).length === 0}
+                  >
+                    <span className="mr-1">Process Selected</span>
+                    <span className="bg-blue-500 px-2 py-0.5 rounded-full text-xs ml-1">
+                      {Object.keys(selectedSubmissions).filter(id => selectedSubmissions[id]).length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-2 mb-3">
+                <ul className="divide-y">
+                  {submissions.map((submission) => {
+                    // Determine submission type for display
+                    let submissionType = "Unknown";
+                    let hasAttachment = false;
+                    
+                    if (submission.assignmentSubmission) {
+                      if (submission.assignmentSubmission.attachments && 
+                          submission.assignmentSubmission.attachments.length > 0) {
+                        const attachment = submission.assignmentSubmission.attachments[0];
+                        hasAttachment = true;
+                        if (attachment.driveFile) {
+                          submissionType = "File";
+                        } else if (attachment.link) {
+                          submissionType = "Link";
+                        } else if (attachment.youtubeVideo) {
+                          submissionType = "YouTube";
+                        }
+                      } else if (submission.assignmentSubmission.text) {
+                        submissionType = "Text";
+                        hasAttachment = true;
                       }
-                    } else if (submission.assignmentSubmission.text) {
-                      submissionType = "Text";
-                      hasAttachment = true;
                     }
-                  }
-                  
-                  return (
-                    <li key={submission.id} className="py-2">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span>Submission from {submission.userId}</span>
-                          <span className={`ml-2 px-2 py-1 text-xs rounded ${
-                            hasAttachment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {submissionType} {!hasAttachment && '(No attachment)'}
-                          </span>
+                    
+                    return (
+                      <li key={submission.id} className="py-2">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <input
+                              type="checkbox"
+                              checked={!!selectedSubmissions[submission.id]}
+                              onChange={handleSelectSubmission(submission.id, hasAttachment)}
+                              disabled={!hasAttachment}
+                              className="mr-2"
+                            />
+                            <span>Submission from {submission.userId}</span>
+                            <span className={`ml-2 px-2 py-1 text-xs rounded ${
+                              hasAttachment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {submissionType} {!hasAttachment && '(No attachment)'}
+                            </span>
+                          </div>
+                          <div>
+                            <button
+                              onClick={() => handleDebugSubmission(submission)}
+                              className="px-3 py-1 mr-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                            >
+                              Debug
+                            </button>
+                            <button
+                              onClick={() => handleDownloadSubmission(submission)}
+                              className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              disabled={loading || !hasAttachment}
+                            >
+                              Use This
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <button
-                            onClick={() => handleDebugSubmission(submission)}
-                            className="px-3 py-1 mr-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-                          >
-                            Debug
-                          </button>
-                          <button
-                            onClick={() => handleDownloadSubmission(submission)}
-                            className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
-                            disabled={loading || !hasAttachment}
-                          >
-                            Use This
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div className="flex justify-between items-center mt-4">
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">{Object.keys(selectedSubmissions).filter(id => selectedSubmissions[id]).length}</span> of {submissions.length} submissions selected
+                </div>
+                <button
+                  onClick={handleProcessSelectedSubmissions}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                  disabled={loading || Object.keys(selectedSubmissions).filter(id => selectedSubmissions[id]).length === 0}
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent mr-2"></div>
+                      Processing...
+                    </span>
+                  ) : (
+                    <span>Process All Selected Submissions</span>
+                  )}
+                </button>
+              </div>
             </div>
           )}
           

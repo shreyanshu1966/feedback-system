@@ -33,6 +33,14 @@ const FeedbackSystem = () => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('indigo');
   
+  // For multiple submissions
+  const [multipleFiles, setMultipleFiles] = useState([]);
+  const [multipleFeedback, setMultipleFeedback] = useState({});
+  const [multipleAiDetection, setMultipleAiDetection] = useState({});
+  const [activeSubmissionIndex, setActiveSubmissionIndex] = useState(0);
+  const [processingMode, setProcessingMode] = useState('single'); // 'single' or 'batch'
+  const [batchProgress, setBatchProgress] = useState(0);
+  
   // References for scroll functions
   const textAnalysisRef = useRef(null);
   const feedbackFormRef = useRef(null);
@@ -84,10 +92,39 @@ const FeedbackSystem = () => {
   const handleClassroomFileSelected = async (classroomFile) => {
     setError('');
     setFeedback(null);
+    setProcessingMode('single');
+    setMultipleFiles([]);
+    setMultipleFeedback({});
+    setMultipleAiDetection({});
     setLoading(true);
     await processFile(classroomFile);
     setShowClassroomIntegration(false);
     setLoading(false);
+  };
+
+  const handleMultipleClassroomFilesSelected = async (classroomFiles) => {
+    if (!classroomFiles || classroomFiles.length === 0) {
+      setError('No valid files were selected.');
+      return;
+    }
+    
+    setError('');
+    setFeedback(null);
+    setProcessingMode('batch');
+    setMultipleFiles(classroomFiles);
+    setMultipleFeedback({});
+    setMultipleAiDetection({});
+    setActiveSubmissionIndex(0);
+    setBatchProgress(0);
+    
+    // Process the first file to show initially
+    if (classroomFiles.length > 0) {
+      setLoading(true);
+      await processFile(classroomFiles[0]);
+      setLoading(false);
+    }
+    
+    setShowClassroomIntegration(false);
   };
 
   const handleGenerateFeedback = async () => {
@@ -155,8 +192,7 @@ const FeedbackSystem = () => {
     feedbackFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setActiveFeedbackTab('feedbackTab');
   };
-  
-  const handleDownloadFeedback = () => {
+    const handleDownloadFeedback = () => {
     if (!feedback) return;
     
     // Create feedback content
@@ -186,6 +222,80 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+  
+  const handleProcessAllSubmissions = async () => {
+    if (multipleFiles.length === 0) {
+      setError('No files to process');
+      return;
+    }
+
+    if (Object.keys(multipleFeedback).length === multipleFiles.length) {
+      // Already processed all files
+      return;
+    }
+
+    if (!subject) {
+      setError('Please select a subject before processing all submissions.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    let processedCount = 0;
+    const totalFiles = multipleFiles.length;
+    const newMultipleFeedback = { ...multipleFeedback };
+    const newMultipleAiDetection = { ...multipleAiDetection };
+
+    for (let i = 0; i < totalFiles; i++) {
+      const currentFile = multipleFiles[i];
+      const fileId = currentFile.submissionId || i;
+      
+      // Skip already processed files
+      if (newMultipleFeedback[fileId]) {
+        processedCount++;
+        continue;
+      }
+
+      try {
+        // Process the file to extract text
+        setBatchProgress(Math.round((processedCount / totalFiles) * 100));
+        await processFile(currentFile);
+        
+        // Generate system prompt
+        const systemPrompt = generateSystemPrompt(subject);
+        
+        // Process in parallel - generate feedback and AI detection
+        const [feedbackData, aiDetectionResult] = await Promise.all([
+          generateFeedback(fileContent, subject, systemPrompt),
+          detectAiContent(fileContent)
+        ]);
+        
+        // Store results
+        newMultipleFeedback[fileId] = feedbackData;
+        newMultipleAiDetection[fileId] = aiDetectionResult;
+        
+        // Update progress
+        processedCount++;
+        setBatchProgress(Math.round((processedCount / totalFiles) * 100));
+      } catch (err) {
+        console.error(`Error processing file ${currentFile.name}:`, err);
+        // Continue with other files
+      }
+    }
+
+    // Update state with all results
+    setMultipleFeedback(newMultipleFeedback);
+    setMultipleAiDetection(newMultipleAiDetection);
+    
+    // Display the active submission's feedback
+    const activeFileId = multipleFiles[activeSubmissionIndex]?.submissionId || activeSubmissionIndex;
+    setFeedback(newMultipleFeedback[activeFileId] || null);
+    setAiDetection(newMultipleAiDetection[activeFileId] || null);
+    
+    setLoading(false);
+  };
+  
     // Theme color configurations
   const themes = {
     indigo: {
@@ -326,11 +436,12 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
                 <span className="font-medium">Documentation</span>
               </a>
             </div>
-          </div>
-
-          {showClassroomIntegration && (
+          </div>          {showClassroomIntegration && (
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200 shadow-inner animate-fadeInDown">
-              <ClassroomIntegration onFileSelected={handleClassroomFileSelected} />
+              <ClassroomIntegration 
+                onFileSelected={handleClassroomFileSelected} 
+                onMultipleFilesSelected={handleMultipleClassroomFilesSelected}
+              />
             </div>
           )}
 
@@ -414,6 +525,253 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
                     <FeedbackDisplay feedback={feedback} aiDetection={aiDetection} onHighlight={setHighlightedSpan} />
                   </div>
                 )}
+                  {processingMode === 'batch' && multipleFiles.length > 0 && (
+            <div className="mt-5 bg-gray-50 rounded-lg p-5 border border-gray-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Batch Processing</h3>
+                <div className="text-sm text-gray-600">
+                  {Object.keys(multipleFeedback).length} of {multipleFiles.length} submissions processed
+                </div>
+              </div>
+              
+              <div className="relative w-full h-2 bg-gray-200 rounded-full mb-4">
+                <div 
+                  className={`absolute top-0 left-0 h-full ${currentThemeClasses.button} rounded-full transition-all duration-500`}
+                  style={{ width: `${(Object.keys(multipleFeedback).length / multipleFiles.length) * 100}%` }}
+                ></div>
+              </div>
+
+              {/* Batch Options */}
+              <div className="mb-5 flex flex-wrap gap-3">
+                <button 
+                  onClick={handleProcessAllSubmissions}
+                  disabled={loading || Object.keys(multipleFeedback).length === multipleFiles.length}
+                  className={`px-4 py-2 ${currentThemeClasses.button} text-white rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      <span>Process All Submissions</span>
+                    </>
+                  )}
+                </button>
+                
+                {Object.keys(multipleFeedback).length > 0 && (
+                  <button 
+                    onClick={() => {
+                      // Export all feedback as a CSV file
+                      const csvContent = [
+                        // Headers
+                        ['Student ID', 'Filename', 'Score', 'AI Detection Score', 'Summary'],
+                        // Data
+                        ...multipleFiles.map((file, index) => {
+                          const fileId = file.submissionId || index;
+                          const feedbackItem = multipleFeedback[fileId];
+                          const aiItem = multipleAiDetection[fileId];
+                          return [
+                            file.userId || 'Unknown',
+                            file.name,
+                            feedbackItem ? feedbackItem.score + '%' : 'N/A',
+                            aiItem ? Math.round(aiItem.probability * 100) + '%' : 'N/A',
+                            feedbackItem ? feedbackItem.summary.substring(0, 100) + '...' : 'Not processed'
+                          ];
+                        })
+                      ]
+                      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+                      .join('\n');
+                      
+                      const blob = new Blob([csvContent], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'all_feedback_results.csv';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center"
+                  >
+                    <Download className="w-5 h-5 mr-2" />
+                    <span>Export All Results (CSV)</span>
+                  </button>
+                )}
+              </div>
+              
+              {/* Submissions Grid with Results */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                {multipleFiles.map((file, index) => {
+                  const fileId = file.submissionId || index;
+                  const feedbackData = multipleFeedback[fileId];
+                  const aiData = multipleAiDetection[fileId];
+                  const isProcessed = !!feedbackData;
+                  
+                  return (
+                    <div 
+                      key={fileId}
+                      onClick={() => {
+                        setActiveSubmissionIndex(index);
+                        processFile(multipleFiles[index]);
+                        
+                        // Set the current feedback and AI detection when clicking on a submission
+                        if (feedbackData) {
+                          setFeedback(feedbackData);
+                          setAiDetection(aiData || null);
+                        }
+                      }}
+                      className={`p-4 rounded-lg border ${
+                        index === activeSubmissionIndex 
+                          ? `border-2 ${currentThemeClasses.accent} shadow-md` 
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      } cursor-pointer transition-all`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="truncate max-w-[70%]">
+                          <div className="font-medium truncate">{file.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {file.userId ? `Student ID: ${file.userId}` : 'Unknown Student'}
+                          </div>
+                        </div>
+                        
+                        {isProcessed && (
+                          <div className={`px-3 py-1.5 text-sm rounded-full ${currentThemeClasses.accent} font-semibold`}>
+                            {feedbackData.score}%
+                          </div>
+                        )}
+                      </div>
+                      
+                      {isProcessed ? (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-600">Feedback Status:</span>
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                              Processed ✓
+                            </span>
+                          </div>
+                          
+                          {aiData && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-gray-600">AI Detection:</span>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                aiData.probability > 0.7 
+                                  ? 'bg-red-100 text-red-800' 
+                                  : aiData.probability > 0.4
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-green-100 text-green-800'
+                              }`}>
+                                {Math.round(aiData.probability * 100)}%
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Mini summary */}
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-700 line-clamp-2">
+                              {feedbackData.summary.substring(0, 80)}...
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-center">
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                            Pending
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* All Submissions Summary - shown when we have processed multiple submissions */}
+              {Object.keys(multipleFeedback).length > 1 && (
+                <div className="mt-8 bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                  <h4 className="text-lg font-semibold mb-4">Class Summary</h4>
+                  
+                  {/* Average score */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <h5 className="text-sm font-medium text-gray-600 mb-1">Average Score</h5>
+                      <div className="text-2xl font-bold">
+                        {Math.round(
+                          Object.values(multipleFeedback)
+                            .reduce((acc, item) => acc + item.score, 0) / 
+                            Object.keys(multipleFeedback).length
+                        )}%
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <h5 className="text-sm font-medium text-gray-600 mb-1">AI Detection Risk</h5>
+                      <div className="text-2xl font-bold">
+                        {Math.round(
+                          Object.values(multipleAiDetection)
+                            .reduce((acc, item) => acc + (item ? item.probability * 100 : 0), 0) / 
+                            Object.keys(multipleAiDetection).length
+                        )}%
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <h5 className="text-sm font-medium text-gray-600 mb-1">Submissions Processed</h5>
+                      <div className="text-2xl font-bold">
+                        {Object.keys(multipleFeedback).length} / {multipleFiles.length}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Score distribution visualization */}
+                  <div className="mb-5">
+                    <h5 className="text-sm font-medium text-gray-600 mb-2">Score Distribution</h5>
+                    <div className="h-8 bg-gray-100 rounded-full overflow-hidden flex">
+                      {/* Count submissions in grade ranges and visualize */}
+                      {(() => {
+                        const ranges = {
+                          '90-100': { count: 0, color: 'bg-green-500' },
+                          '80-89': { count: 0, color: 'bg-green-400' },
+                          '70-79': { count: 0, color: 'bg-yellow-400' },
+                          '60-69': { count: 0, color: 'bg-orange-400' },
+                          '0-59': { count: 0, color: 'bg-red-500' }
+                        };
+                        
+                        Object.values(multipleFeedback).forEach(fb => {
+                          if (fb.score >= 90) ranges['90-100'].count++;
+                          else if (fb.score >= 80) ranges['80-89'].count++;
+                          else if (fb.score >= 70) ranges['70-79'].count++;
+                          else if (fb.score >= 60) ranges['60-69'].count++;
+                          else ranges['0-59'].count++;
+                        });
+                        
+                        const total = Object.keys(multipleFeedback).length;
+                        
+                        return Object.entries(ranges).map(([range, { count, color }]) => {
+                          const percentage = (count / total) * 100;
+                          return percentage > 0 ? (
+                            <div 
+                              key={range}
+                              className={`${color} h-full`} 
+                              style={{ width: `${percentage}%` }}
+                              title={`${range}%: ${count} submissions`}
+                            />
+                          ) : null;
+                        });
+                      })()}
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0%</span>
+                      <span>Score Distribution</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
               </div>
             </div>
           )}
@@ -495,8 +853,7 @@ ${feedback.suggestions?.map(item => `- ${item}`).join('\n') || 'None'}
           animation: float 5s ease-in-out infinite;
         }
       `}</style>
-    </div>
-  );
+    </div>  );
 };
 
 export default FeedbackSystem;
